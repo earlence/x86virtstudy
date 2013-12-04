@@ -1,0 +1,35 @@
+Readings
+
+For Thu, Jan 25: Read three sections in PC16550D Serial UART: "General Description", "Features", and "Registers" 
+and browse The Serial UART online tutorial by Lammert Bies
+For Tue, Jan 30: Intel Manual (Volume I): Chapter 1 "About This Manual" and Chapter 2 "IA-32 Intel Architecture".
+For Thu, Feb 01: Intel Manual (Volume I): Chapter 3 "Basic Execution Environment".
+For Tue, Feb 06: Intel Manual (Volume I): Chapter 4 "Data Types" and Chapter 5 "Instruction Set Summary".
+For Thu, Feb 08: Intel Manual (Volume I): Chapter 6 "Procedure Calls, Interrupts, and Exceptions".
+For Tue, Feb 13: Intel Manual (Volume I): Chapter 7 "Programming with General Purpose Instructions" and Chapter 13 "Input/Output"
+For Thu, Feb 15: Intel Manual (Volume I): Chapter 14 "Processor Identification and Feature Determination".
+For Tue, Feb 20: No new reading assignment -- University Holiday.
+For Tue, Feb 22: No new reading assignment -- Midterm Exam I. 
+
+For Tue, Feb 27: Intel Manual (Volume III): Chapter 1 "About this Manual" and Chapter 2 "System Architecture Overview"
+For Thu, Mar 01: Intel Manual (Volume III): Chapter 3 "Protected-Mode Memory Management"
+For Tue, Mar 06 Intel Manual (Volume III): Chapter 4 "Protection"
+For Thu, Mar 08: Intel Manual (Volume III): Chapter 5 "Interrupt and Exception Handling"
+For Tue-Thu, Mar 13-15: No new reading assignments -- Spring Recess
+For Tue, Mar 20 Intel Manual (Volume III): Chapter 6 "Task Management" and Chapter 7 "Multiple-Processor Management"
+For Thu, Mar 22 Intel Manual (Volume III): Chapter 8 "Advanced Programmable Interrupt Controller (APIC)"
+For Tue, Mar 27 Intel Manual (Volume III): Chapter 9 "Processor Management and Initialization"
+For Thu, Mar 29 Intel Manual (Volume III): Chapter 15 "8086 Emulation"
+For Tue, Apr 03: No new reading assignment -- Midterm Exam II.
+For Thu, Apr 05: No new reading assignment -- University Closes at 4pm for Good Friday. 
+
+For Tue, Apr 10: Intel Manual (Volume III): Chapter 16 "Mixing 16-bit and 32-bit Code"
+For Thu, Apr 12: Intel Manual (Volume III): Chapter 19 "Introduction to Virtual-Machine Extensions"
+For Tue, Apr 17: Intel Manual (Volume III): Chapter 20 "Virtual-Machine Control Structures"
+For Thu, Apr 19: Intel Manual (Volume III): Chapter 21 "VMX Non-Root Operation"
+For Tue, Apr 24: Intel Manual (Volume III): Chapter 22 "VM Entries"
+For Thu, Apr 26: Intel Manual (Volume III): Chapter 23 "VM Exits"
+For Tue, May 01: Intel Manual (Volume III): Chapter 25 "Virtual-Machine Monitor Programming Considerations"
+For Thu, May 03: Intel Manual (Volume III): Chapter 26 "Virtualization of System Resources"
+For Tue, May 08: Intel Manual (Volume III): Chapter 27 "Handling Boundary Conditions in a Virtual-Machine Monitor"
+For Thu, May 10: No new reading assignment -- review for Final Exam
