@@ -1,0 +1,24 @@
+/*                                       */
+/* 'hiscript' --- A simple Linker Script */
+/* for use with the GNU linker 'ld' when */ 
+/* we produce a binary-format executable */
+/* that will execute in 64-bit mode from */
+/* a 'relocated' page-frame. 
+/*                                       */
+/* usage:                                */
+/*   $ gcc -c demo.cpp			 */
+/*   $ ld demo.o -T hiscript -o demo.b   */                         
+
+/* programmer: ALLAN CRUSE */
+/* written on: 09 MAR 2007 */
+
+OUTPUT_FORMAT(binary);
+
+SECTIONS
+{
+	. = 0xFFFFFFFFC0000000;
+	.text :	{ *(.text) } =0x90909090
+	.data : { *(.data) } =0x00000000
+	.bss  : { *(.bss)  } =0x00000000
+}
+

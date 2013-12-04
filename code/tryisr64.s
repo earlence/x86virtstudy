@@ -1,0 +1,349 @@
+//-----------------------------------------------------------------
+//	tryisr64.s		(Modifies our 'tryisr32.s' demo)
+//
+//	This example invokes an interrupt-handler in 64-bit mode.
+//
+//	 to assemble:  $ as tryisr64.s -o tryisr64.o
+//	 and to link:  $ ld tryisr64.o -T ldscript -o tryisr64.b
+//	 and install:  $ dd if=tryisr64.b of=/dev/sda4 seek=1
+//
+//	NOTE: This code begins executing with CS:IP = 1000:0002.
+//
+//	programmer: ALLAN CRUSE
+//	written on: 28 FEB 2007
+//-----------------------------------------------------------------
+
+	.section	.text
+#------------------------------------------------------------------
+	.short	0xABCD
+#------------------------------------------------------------------
+begin:	.code16
+	mov	%sp, %cs:exit_pointer+0	# preserve the loader's SP
+	mov	%ss, %cs:exit_pointer+2	# preserve the loader's SS
+
+	mov	%cs, %ax		# address program data
+	mov	%ax, %ds		#   with DS register
+	mov	%ax, %ss		#   also SS register
+	lea	tos, %sp		# setup a new stacktop
+
+	call	create_system_tables
+	call	initialize_variables
+	call	enter_protected_mode
+	call	execute_program_demo
+	call	leave_protected_mode
+	call	update_machine_state
+
+	lss	%cs:exit_pointer, %sp	# recover loader's SS:SP
+	lret				# for exit back to loader
+#------------------------------------------------------------------
+exit_pointer:	.short	0, 0		# holds loader's SS and SP 
+#------------------------------------------------------------------
+create_system_tables:
+
+	# install an interrupt-gate for the timer-tick interrupt
+	mov	$0x08, %bx		# timer's interrupt-ID
+	imul	$16, %bx, %di		# times descriptor-size
+	lea	theIDT(%di), %di	# point DS:DI to entry
+	movw	$isrTMR, 0(%di)		# entry-point [15..0]
+	movw	$sel_CS, 2(%di)		# 64-bit code-selector
+	movw	$0x8E00, 4(%di)		# 80386 interrupt-gate
+	movw	$0x0001, 6(%di)		# entry-point [31..16]
+	movl	$0x00000000, 8(%di)	# entry-point [63..32]
+	movl	$0x00000000, 12(%di)	# reserved (must be 0)
+
+	ret
+#------------------------------------------------------------------
+theIDT:	.space	256 * 16			# for 256 gate-descriptors
+	.equ	limIDT, (. - theIDT)-1	# our IDT-segment's limit
+#------------------------------------------------------------------
+#------------------------------------------------------------------
+theGDT:	# Our Global Descriptor Table (needed for protected-mode)
+	.quad	0x0000000000000000		# null-descriptor
+
+	.equ	sel_CS, (. - theGDT)+0	# selector for 64bit code
+	.quad	0x00209A0000000000		# code-descriptor
+
+	.equ	sel_cs, (. - theGDT)+0	# selector for 16bit code
+	.quad	0x00009A010000FFFF		# code-descriptor
+
+	.equ	sel_ds, (. - theGDT)+0	# selector for 16bit data
+	.quad	0x000092010000FFFF		# data-descriptor
+
+	.equ	sel_es, (. - theGDT)+0	# selector for 16bit data
+	.quad	0x0000920B8000FFFF		# vram-descriptor
+
+	.equ	sel_fs, (. - theGDT)+0	# selector for 16bit data
+	.quad	0x000092000000FFFF		# bios-descriptor
+
+	.equ	limGDT, (. - theGDT)-1	# our GDT-segment's limit
+#------------------------------------------------------------------
+regCR3:	.long	level4 + 0x10000	# level4 physical-address 
+regGDT:	.word	limGDT, theGDT, 0x0001	# register-image for GDTR
+regIDT:	.word	limIDT, theIDT, 0x0001	# register-image for IDTR
+#------------------------------------------------------------------
+saveCR0: .long	0			# stores the original CR0
+saveCR3: .long	0			# stores the original CR3
+saveCR4: .long	0			# stores the original CR4
+regEFER: .long	0, 0			# stores the original EFER
+saveGDT: .word	0, 0, 0			# stores the original GDTR
+saveIDT: .word	0, 0, 0			# stores the original IDTR
+picmask: .byte	0			# stores the 8259-PIC mask
+#------------------------------------------------------------------
+enter_protected_mode:
+
+	cli				# interrupts not allowed
+
+	mov	%cr0, %eax		# current machine status
+	bts	$0, %eax		# turn on PE-bit image
+	bts	$31, %eax		# turn on PG-bit image
+	mov	%eax, %cr0		# enable protected-mode
+
+	lgdt	regGDT			# setup GDTR register
+	lidt	regIDT			# setup IDTR register
+
+	ljmp	$sel_cs, $pm		# code-selector into CS
+pm:	
+	mov	$sel_ds, %ax		# load our data-selector
+	mov	%ax, %ss		#  into the SS register
+	mov	%ax, %ds		#  also the DS register
+	mov	%ax, %es		#  also the ES register
+
+	ret				# back to main routine
+#------------------------------------------------------------------
+jiffies: .int	0			# for timer-tick counter
+timeout: .int	81 * 3			# for 15-second duration
+#------------------------------------------------------------------
+#------------------------------------------------------------------
+initialize_variables:
+
+	xor	%ax, %ax		# address rom-bios data 
+	mov	%ax, %fs		#   with FS register
+	mov	%ax, %gs		#   also GS register
+	mov	%fs:0x046C, %eax	# get system tick-count
+	mov	%eax, jiffies		# and save as 'jiffies'
+	add	%eax, timeout		# also add to 'timeout'
+	
+	sidt	saveIDT			# save system's IDTR
+	sgdt	saveGDT			# save system's GDTR
+
+	mov	%cr0, %eax		# get register CR0
+	mov	%eax, saveCR0		# save system's CR0
+	mov	%cr3, %eax		# get register CR3
+	mov	%eax, saveCR3		# save system's CR3
+	mov	%cr4, %eax		# get register CR4
+	mov	%eax, saveCR4		# save system's CR4
+	bts	$5, %eax		# set PAE-bit image
+	mov	%eax, %cr4		# in register CR4
+	mov	regCR3, %eax		# setup pagemap base
+	mov	%eax, %cr3		# in register CR3
+
+	mov	$0xC0000080, %ecx	# ID-number for EFER
+	rdmsr				# read MSR in (EDX,EAX)
+	mov	%eax, regEFER+0		# save bits 31..0
+	mov	%edx, regEFER+4		# save bits 63..32
+	bts	$8, %eax		# set LME-bit to 1
+	wrmsr				# write new EFER value
+
+	inb	$0x21, %al		# get master-PIC mask
+	mov	%al, picmask		# save system's mask
+	mov	$0xFE, %al		# mask all but timer
+	out	%al, $0x21		# from interrupting
+
+	ret
+#------------------------------------------------------------------
+leave_protected_mode:
+
+	mov	saveCR0, %eax		# recover original CR0
+	mov	%eax, %cr0		# to reenter real-mode
+
+	mov	saveCR3, %eax		# recover original CR3
+	mov	%eax, %cr3		# to flush out the TLB
+
+	mov	saveCR4, %eax		# recover original CR4
+	mov	%eax, %cr4		# to restore PAE-bit
+
+	ljmp	$0x1000, $rm		# reload CS register
+rm:	mov	%cs, %ax		# for 'real-mode'
+	mov	%ax, %ss		# also SS register
+	mov	%ax, %ds		# also DS register
+
+	lidt	saveIDT			# restore former IDTR
+	lgdt	saveGDT			# restore former GDTR
+
+	mov	picmask, %al		# restore PIC's mask
+	out	%al, $0x21		# to allow interrupts
+	sti				# from former devices
+
+	ret
+#------------------------------------------------------------------
+#------------------------------------------------------------------
+execute_program_demo:
+
+	mov	$sel_ds, %ax		# address program data
+	mov	%ax, %ds		#   with DS register
+	mov	$sel_es, %ax		# address video memory
+	mov	%ax, %es		#   with ES register
+
+	sti				# allow device interrupts
+again:
+	call	calculate_current_time	
+	call	format_time_components
+	call	write_report_to_screen
+	
+	mov	jiffies, %eax		# get current tick-count
+	cmp	%eax, timeout		# timeout value reached?
+	ja	again			# no, update the display 
+
+	cli				# else disable interrupts
+	ret				# go back to main routine
+#------------------------------------------------------------------
+msg:	.ascii	" Time is xx:xx:xx xm "	# buffer for time-message 	
+len:	.int	. - msg			# length of message-string
+att:	.byte	0x30			# message color-attributes
+ss:	.int	0			# storage for current secs
+mm:	.int	0			# storage for current mins
+hh:	.int	0			# storage for current hour
+hd:	.int	0			# storage for halfday flag 
+ap:	.ascii	"ap"			# characters for 'am'/'pm'
+#------------------------------------------------------------------
+calculate_current_time:
+
+	mov	jiffies, %eax		# get current tick-count
+	mov	$10, %edx		# setup ten as multiplier
+	mul	%edx			# perform multiplication
+	mov	$182, %ecx		# use 18.2 * 10 as divisor
+	div	%ecx			# perform the division
+	
+	xor	%edx, %edx		# zero-extend the quotient 
+	mov	$60, %ecx		# number of secs-per-min
+	div	%ecx			# perform the division
+	mov	%edx, ss		# remainder gives secs
+	
+	xor	%edx, %edx		# zero-extend the quotient
+	mov	$60, %ecx		# number of mins-per-hour
+	div	%ecx			# perform the division
+	mov	%edx, mm		# remainder gives mins
+
+	xor	%edx, %edx		# zero-extend the quotient
+	mov	$12, %ecx		# number of hours-per-halfday
+	div	%ecx			# perform the division
+	mov	%edx, hh		# remainder gives hours
+	mov	%eax, hd		# quotient gives halfdays
+
+	ret	
+#------------------------------------------------------------------
+#------------------------------------------------------------------
+format_time_components:
+
+	mov	ss, %ax			# get current seconds
+	mov	$10, %bl		# setup ten as divisor
+	div	%bl			# perform byte division
+	or	$0x3030, %ax		# convert both results 
+	mov	%ax, msg+15		# put numerals in message
+
+	mov	mm, %ax			# get current minutes
+	mov	$10, %bl		# setup ten as divisor
+	div	%bl			# perform byte division
+	or	$0x3030, %ax		# convert both results
+	mov	%ax, msg+12		# put numerals in message
+
+	mov	hh, %ax			# get current hours
+	mov	$10, %bl		# setup ten as divisor
+	div	%bl			# perform byte division
+	or	$0x3030, %ax		# put numerals in message
+	mov	%ax, msg+9
+
+	mov	hd, %eax		# get the halfday flag
+	mov	ap(%eax), %dl		# 'am' or 'pm' character
+	mov	%dl, msg+18		# put character in message
+
+	ret
+#------------------------------------------------------------------
+write_report_to_screen:
+
+	mov	$12, %ax		# setup row-number in AX
+	imul	$160, %ax, %di		# compute row-offset in DI
+	add	$60, %di		# advance past 30 columns
+	cld				# use 'forward' processing
+	lea	msg, %si		# point DS:SI to message
+	mov	len, %cx		# message's length in CX
+	mov	att, %ah		# attribute-code into AH
+nxpel:	
+	lodsb				# fetch next character
+	stosw				# store char and color
+	loop	nxpel			# again for next char
+
+	ret	
+#------------------------------------------------------------------
+update_machine_state:
+
+	xor	%ax, %ax		# address rom-bios data
+	mov	%ax, %fs		#   with FS register
+	mov	jiffies, %eax		# copy final tick-count
+	mov	%eax, %fs:0x046C	# into rom-bios variable
+
+	mov	$0xC0000080, %eax	# ID-number for EFER
+	mov	regEFER+0, %eax		# original bits 31..0
+	mov	regEFER+4, %edx		# original bits 63..32
+	wrmsr				# restore former EFER
+
+	ret
+#------------------------------------------------------------------
+	.align	16			# insure stack alignment
+	.space	512			# allocate stack storage
+tos:					# label for top-of-stack
+#------------------------------------------------------------------
+#------------------------------------------------------------------
+# Here is our INTERRUPT SERVICE ROUTINE for the Timer's interrupts
+#------------------------------------------------------------------
+isrTMR:	.code64
+
+	push	%rax			# must preserve registers
+###	push	%ds			#  used by this routine
+
+###	mov	$sel_ds, %ax		# address our variable
+###	mov	%ax, %ds		#   with DS register
+
+	incl	jiffies+0x10000		# add one to 'jiffies'
+
+	mov	$0x20, %al		# issue End-Of-Interrupt
+	out	%al, $0x20		# to the 8259 controller
+
+###	pop	%ds			# must restore registers
+	pop	%rax			# that we clobbered here 
+
+	iretq				# resume interrupted job
+#------------------------------------------------------------------
+
+
+
+	.section	.data
+	.align	0x1000
+#------------------------------------------------------------------
+# NOTE: Here we create the 4-level page-mapping tables needed for
+# execution in protected-mode with 64-bit Page-Address Extensions
+# using an 'identity-mapping' of the lowest 1-megabyte of memory.
+#------------------------------------------------------------------
+level1:	entry = 0x00000			# initial physical-address
+	.rept	256			# map 256 4-KB page-frames
+	.quad	entry + 0x003		# 'present' and 'writable'
+	entry = entry + 0x1000		# next page-frame address
+	.endr				# end of our repeat-macro
+	.align	0x1000			# rest of table has zeros
+#------------------------------------------------------------------
+level2:	.quad	level1 + 0x10003	# initial directory-entry
+	.align	0x1000			# rest of table has zeros
+#------------------------------------------------------------------
+level3:	.quad	level2 + 0x10003	# initial 'pointer' entry
+	.align	0x1000			# rest of table has zeros
+#------------------------------------------------------------------
+level4:	.quad	level3 + 0x10003	# initial 'level-4' entry
+	.align	0x1000			# rest of table has zeros
+#------------------------------------------------------------------
+	.end				# no more to be assembled
+
+NOTE: You can use the Linux 'diff' command to compare a pair of
+text-files, to see which lines we modifified here, like this:
+
+		$ diff tryisr32.s tryisr64.s
+

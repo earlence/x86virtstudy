@@ -1,0 +1,23 @@
+/*                                       */
+/* 'ldscript' --- A simple Linker Script */
+/* for use with the GNU linker 'ld' when */ 
+/* producing a binary-format executable. */
+/*                                       */
+/* usage:                                */
+/*   $ gcc -c main.cpp			 */
+/*   $ ld main.o -T ldscript -o main.b   */                         
+
+/* programmer: ALLAN CRUSE */
+/* written on: 02 MAY 2004 */
+/* revised on: 24 MAY 2004 */
+
+OUTPUT_FORMAT(binary);
+
+SECTIONS
+{
+	. = 0x00000000;
+	.text :	{ *(.text) } =0x90909090
+	.data : { *(.data) } =0x00000000
+	.bss  : { *(.bss)  } =0x00000000
+}
+

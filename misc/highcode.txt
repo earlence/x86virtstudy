@@ -1,0 +1,56 @@
+HIGHCODE.DOC
+
+This demonstration employs several files:
+
+	highdraw.s
+
+	This file defines a 64-bit procedure that will be mapped 
+	to a 'high' location in the CPU's virtual address space,
+	and will simply draw a message directly to video memory,
+	confirming that control did arrive at that location.  We
+	selected the canonical address to be 0xFFFFFFFFC0000000,
+	because (1) it will be straighforward to construct page-
+	mapping tables for the page-frame at this location, and 
+	(2) this address is the sign-extension of a 32-bit value
+	so that our 'ld' linker can perform the code-relocation
+	of 'symbolic addresses' (i.e., statement-labels) used.
+
+
+	hiscript
+
+	This is the linker-script needed for 'code-relocating',
+	and it is used like this:
+
+		$ ld highdraw.o -T hiscript -o highdraw.b
+
+
+
+	highcode.s
+
+	This program will load an image of the 'highdraw.b' file
+	from a designated logical block of our '/dev/sda4' disk-
+	partition into an area of physical memory that will then
+	be 'mapped' to the page-frame at the high address in our
+	program's virtual memory space; this program then enters
+	16-bit 'compatibility mode', performs a direct long call
+	(via a 64-bit call-gate) to the 64-bit procedure's entry
+	point in the 'highdraw.s' program, and when that routine
+	returns control to the 16-bit 'compatibility mode' code, 
+	it will exit back to the 'real mode' code residing in an
+	identity-mapped page-frame.
+
+	
+	ldscript
+
+	This is the linker-script we have been using up till now
+	to produce our previous the 'binary-format' executables,
+	and we use it again here:
+
+		$ ld highcode.o -T ldscript -o highcode.b
+
+
+	NOTE: We have made a small modification to our previous
+	boot-loader program ('cs686ipl.s') so that it passes to
+	the 'highcode.s' application the starting Logical Block
+	Address of our course's disk-partition ('/dev/sda4').
+
